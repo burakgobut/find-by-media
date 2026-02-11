@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find by Media</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-theme="DARK">
+
+    <!-- Controls -->
+    <div id="controls">
+        <div class="control-row">
+            <span class="control-label">Auto</span>
+            <button id="auto-toggle" class="toggle-btn active" title="Auto-search on selection change">ON</button>
+            <div class="spacer"></div>
+            <!-- Search Mode Selector -->
+            <select id="search-mode" title="Search algorithm">
+                <option value="phash">Pixel</option>
+                <option value="clip">AI (CLIP)</option>
+                <option value="hybrid">Hybrid</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <span class="control-label">Results: <span id="result-count-label">20</span></span>
+            <input type="range" id="result-count" min="5" max="50" value="20" step="5">
+            <span class="control-label">Min: <span id="threshold-label">70</span>%</span>
+            <input type="range" id="threshold" min="0" max="100" value="70" step="5">
+            <button id="search-btn" class="icon-btn" title="Search now">&#x1F50D;</button>
+        </div>
+    </div>
+
+    <!-- CLIP Model Status -->
+    <div id="clip-status" class="hidden">
+        <span id="clip-status-text">Loading AI model...</span>
+    </div>
+
+    <!-- Drop Zone -->
+    <div id="drop-zone" class="hidden">
+        <div class="drop-content">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span>Drop image here</span>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="hidden">
+        <div class="spinner"></div>
+        <span id="loading-text">Searching...</span>
+    </div>
+
+    <!-- Indexing Progress -->
+    <div id="indexing-bar" class="hidden">
+        <div id="indexing-track">
+            <div id="indexing-progress"></div>
+        </div>
+        <span id="indexing-text">Indexing...</span>
+    </div>
+
+    <!-- Results Grid -->
+    <div id="results-grid"></div>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="hidden">
+        <span id="empty-text">Select an image to find similar items</span>
+    </div>
+
+    <!-- Preview Overlay -->
+    <div id="preview-overlay" class="hidden">
+        <div id="preview-container">
+            <img id="preview-img" src="" alt="Preview">
+            <div id="preview-info"></div>
+        </div>
+    </div>
+
+    <script src="js/hasher.js"></script>
+    <script src="js/embedder.js"></script>
+    <script src="js/similarity.js"></script>
+    <script src="js/cache.js"></script>
+    <script src="js/indexer.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

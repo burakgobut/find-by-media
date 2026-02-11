@@ -1,0 +1,9 @@
+{
+    "name": "find-by-media",
+    "version": "1.0.0",
+    "description": "Visual similarity search inspector plugin for Eagle",
+    "dependencies": {
+        "@huggingface/transformers": "^3.8.1",
+        "blockhash-core": "^0.1.0"
+    }
+}
