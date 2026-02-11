@@ -13,8 +13,8 @@ const Indexer = {
 
     CHUNK_SIZE: 10,
     CHUNK_DELAY: 30,
-    EMBED_CHUNK_SIZE: 1,   // CLIP is heavy, one at a time
-    EMBED_CHUNK_DELAY: 10,
+    EMBED_CHUNK_SIZE: 3,   // WebGL inference ~100-300ms per image
+    EMBED_CHUNK_DELAY: 50,
 
     _isRunning: false,
     _shouldStop: false,
@@ -114,9 +114,9 @@ const Indexer = {
      * Phase 2: Index CLIP embeddings
      */
     async _indexClip(items, onProgress) {
-        // Check if CLIP is available
+        // Check if neural model is available
         if (!Embedder.isReady()) {
-            console.log('Indexer: Phase 2 - CLIP model not loaded yet, skipping');
+            console.log('Indexer: Phase 2 - Neural model not loaded yet, skipping');
             return;
         }
 
@@ -129,37 +129,42 @@ const Indexer = {
         const totalImages = items.filter(item => Indexer.isImageType(item.ext)).length;
 
         if (toEmbed.length === 0) {
-            console.log('Indexer: Phase 2 (CLIP) - all embedded');
+            console.log('Indexer: Phase 2 (neural) - all embedded');
             return;
         }
 
-        console.log(`Indexer: Phase 2 - ${toEmbed.length} items need CLIP embedding`);
+        console.log(`Indexer: Phase 2 - ${toEmbed.length} items need neural embedding`);
 
         let processed = 0;
         const alreadyEmbedded = totalImages - toEmbed.length;
 
-        if (onProgress) onProgress(alreadyEmbedded, totalImages, 'clip');
+        if (onProgress) onProgress(alreadyEmbedded, totalImages, 'neural');
 
         for (let i = 0; i < toEmbed.length; i += Indexer.EMBED_CHUNK_SIZE) {
             if (Indexer._shouldStop) break;
 
-            const item = toEmbed[i];
-            try {
-                const hashPath = Indexer.getHashPath(item);
-                if (!hashPath) continue;
+            const chunk = toEmbed.slice(i, i + Indexer.EMBED_CHUNK_SIZE);
 
-                const embedding = await Embedder.computeEmbedding(hashPath);
-                const existing = Cache.getHash(item.id) || {};
-                Cache.setHash(item.id, {
-                    ...existing,
-                    embedding: embedding
-                });
-            } catch (err) {
-                // Skip items that fail
+            // Process chunk items sequentially (GPU can only handle one at a time)
+            for (const item of chunk) {
+                if (Indexer._shouldStop) break;
+                try {
+                    const hashPath = Indexer.getHashPath(item);
+                    if (!hashPath) continue;
+
+                    const embedding = await Embedder.computeEmbedding(hashPath);
+                    const existing = Cache.getHash(item.id) || {};
+                    Cache.setHash(item.id, {
+                        ...existing,
+                        embedding: embedding
+                    });
+                } catch (err) {
+                    // Skip items that fail
+                }
+                processed++;
             }
 
-            processed++;
-            if (onProgress) onProgress(alreadyEmbedded + processed, totalImages, 'clip');
+            if (onProgress) onProgress(alreadyEmbedded + processed, totalImages, 'neural');
             await new Promise(r => setTimeout(r, Indexer.EMBED_CHUNK_DELAY));
         }
 

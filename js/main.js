@@ -94,14 +94,14 @@ const App = {
         try {
             // Show loading status
             statusEl.classList.remove('hidden');
-            document.getElementById('clip-status-text').textContent = 'Loading AI model (first run only)...';
+            document.getElementById('clip-status-text').textContent = 'Loading neural search model...';
 
             const modelCacheDir = nodePath.join(App.pluginPath, 'models');
             const ok = await Embedder.init(modelCacheDir);
 
             if (ok) {
                 App.clipReady = true;
-                document.getElementById('clip-status-text').textContent = 'AI model ready ✓';
+                document.getElementById('clip-status-text').textContent = 'Neural search ready ✓';
                 statusEl.classList.add('ready');
                 if (aiBadge) aiBadge.classList.remove('hidden');
                 setTimeout(() => statusEl.classList.add('hidden'), 3000);
@@ -122,7 +122,7 @@ const App = {
             } else {
                 const errMsg = Embedder.getError() || 'unknown error';
                 console.warn('App: CLIP not available:', errMsg);
-                document.getElementById('clip-status-text').textContent = 'AI not available (using pixel mode)';
+                document.getElementById('clip-status-text').textContent = 'Neural model not available (pixel mode)';
                 setTimeout(() => statusEl.classList.add('hidden'), 5000);
             }
         } catch (e) {

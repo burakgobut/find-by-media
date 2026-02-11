@@ -8,7 +8,7 @@ const nodePath = require('path');
 
 const Cache = {
 
-    CACHE_VERSION: 2,
+    CACHE_VERSION: 3,
     SAVE_DEBOUNCE_MS: 3000,
 
     _data: null,
