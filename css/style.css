@@ -101,7 +101,7 @@ body {
 
 /* ===== Controls ===== */
 #controls {
-    padding: 8px 10px;
+    padding: 6px 10px;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
 }
@@ -110,7 +110,7 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
 }
 
 .control-row:last-child {
@@ -121,6 +121,7 @@ body {
     font-size: 11px;
     color: var(--text-muted);
     white-space: nowrap;
+    min-width: fit-content;
 }
 
 .spacer {
@@ -167,25 +168,15 @@ body {
     border-color: var(--accent);
 }
 
-/* Select Dropdown */
-#search-mode {
-    background: var(--bg-secondary);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 2px 4px;
-    font-size: 11px;
-    cursor: pointer;
-    outline: none;
-}
-
-#search-mode:hover {
-    border-color: var(--accent);
-}
-
-#search-mode option {
-    background: var(--bg);
-    color: var(--text);
+/* AI Badge */
+.ai-badge {
+    background: var(--accent);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
 }
 
 /* CLIP Status Bar */
@@ -224,8 +215,7 @@ input[type="range"] {
     border-radius: 2px;
     outline: none;
     flex: 1;
-    min-width: 50px;
-    max-width: 120px;
+    min-width: 60px;
 }
 
 input[type="range"]::-webkit-slider-thumb {

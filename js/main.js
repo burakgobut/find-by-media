@@ -1,6 +1,10 @@
 /**
  * main.js - Entry point and orchestrator
  * Eagle API integration, selection polling, search coordination, drag & drop
+ *
+ * Search mode is automatic:
+ * - CLIP not ready → pHash mode (pixel-level)
+ * - CLIP ready → hybrid mode (AI + pixel)
  */
 
 const nodePath = require('path');
@@ -14,7 +18,6 @@ const App = {
     autoSearchEnabled: true,
     resultCount: 20,
     threshold: 70,
-    searchMode: 'phash',  // 'phash', 'clip', 'hybrid'
     lastSelectedId: null,
     lastSearchedId: null,
     allItems: [],
@@ -24,6 +27,13 @@ const App = {
     _lastResults: null,
 
     POLL_INTERVAL: 500,
+
+    /**
+     * Get current search mode automatically
+     */
+    getSearchMode() {
+        return App.clipReady ? 'hybrid' : 'phash';
+    },
 
     async init(plugin) {
         App.pluginPath = plugin.path;
@@ -65,7 +75,7 @@ const App = {
             App._startIndexing();
         }
 
-        // Start CLIP model loading in background
+        // Start CLIP model loading in background (non-blocking, won't break anything)
         App._initClip();
 
         // Start polling
@@ -75,36 +85,49 @@ const App = {
 
     /**
      * Initialize CLIP model in background
+     * If it fails, the plugin continues with pHash only
      */
     async _initClip() {
         const statusEl = document.getElementById('clip-status');
-
-        // Show loading status
-        statusEl.classList.remove('hidden');
-        statusEl.innerHTML = '<div class="spinner"></div><span id="clip-status-text">Downloading AI model (first run only)...</span>';
-
-        const modelCacheDir = nodePath.join(App.pluginPath, 'models');
+        const aiBadge = document.getElementById('ai-badge');
 
         try {
+            // Show loading status
+            statusEl.classList.remove('hidden');
+            document.getElementById('clip-status-text').textContent = 'Loading AI model (first run only)...';
+
+            const modelCacheDir = nodePath.join(App.pluginPath, 'models');
             const ok = await Embedder.init(modelCacheDir);
+
             if (ok) {
                 App.clipReady = true;
+                document.getElementById('clip-status-text').textContent = 'AI model ready ✓';
                 statusEl.classList.add('ready');
-                statusEl.innerHTML = '<span id="clip-status-text">AI model ready</span>';
+                if (aiBadge) aiBadge.classList.remove('hidden');
                 setTimeout(() => statusEl.classList.add('hidden'), 3000);
 
-                // Start CLIP indexing if phash is done
+                // If phash indexing is done, start CLIP indexing
                 if (App.indexingDone && App.allItems.length > 0) {
                     App._startClipIndexing();
                 }
+
+                // Re-search with AI if we already have results
+                if (App.lastSelectedId && App._lastResults) {
+                    const item = App.allItems.find(i => i.id === App.lastSelectedId);
+                    if (item) {
+                        App.lastSearchedId = null;
+                        App.performSearch(item);
+                    }
+                }
             } else {
-                statusEl.classList.add('error');
-                statusEl.innerHTML = '<span id="clip-status-text">AI model failed to load</span>';
+                const errMsg = Embedder.getError() || 'unknown error';
+                console.warn('App: CLIP not available:', errMsg);
+                document.getElementById('clip-status-text').textContent = 'AI not available (using pixel mode)';
+                setTimeout(() => statusEl.classList.add('hidden'), 5000);
             }
         } catch (e) {
-            console.warn('App: CLIP init failed:', e.message);
-            statusEl.classList.add('error');
-            statusEl.innerHTML = '<span id="clip-status-text">AI model error</span>';
+            console.warn('App: CLIP init error:', e.message);
+            statusEl.classList.add('hidden');
         }
     },
 
@@ -196,37 +219,29 @@ const App = {
                 return;
             }
 
+            const searchMode = App.getSearchMode();
             const queryData = {};
 
-            // pHash data (for phash and hybrid modes)
-            if (App.searchMode === 'phash' || App.searchMode === 'hybrid') {
-                const hashes = await Hasher.computeHashes(hashPath);
-                queryData.pHash = hashes.pHash;
-                queryData.colorHistogram = hashes.colorHistogram;
-            }
+            // Always compute pHash (fast, needed for phash and hybrid)
+            const hashes = await Hasher.computeHashes(hashPath);
+            queryData.pHash = hashes.pHash;
+            queryData.colorHistogram = hashes.colorHistogram;
 
-            // CLIP embedding (for clip and hybrid modes)
-            if ((App.searchMode === 'clip' || App.searchMode === 'hybrid') && App.clipReady) {
+            // Compute CLIP embedding if available (for hybrid mode)
+            if (App.clipReady) {
                 try {
                     queryData.embedding = await Embedder.computeEmbedding(hashPath);
                 } catch (e) {
-                    console.warn('App: CLIP embedding failed:', e.message);
+                    console.warn('App: CLIP embedding failed for query:', e.message);
                 }
-            }
-
-            if (App.searchMode === 'clip' && !queryData.embedding) {
-                UI.hideLoading();
-                UI.showEmptyState('AI model not ready yet. Use Pixel or Hybrid mode.');
-                App.isSearching = false;
-                return;
             }
 
             const cacheItems = Cache.getAllItems();
             const results = Similarity.findSimilar(
-                queryData, cacheItems, App.threshold, App.resultCount, item.id, App.searchMode
+                queryData, cacheItems, App.threshold, App.resultCount, item.id, searchMode
             );
 
-            App._lastResults = { queryData, excludeId: item.id };
+            App._lastResults = { queryData, excludeId: item.id, searchMode };
             App.lastSearchedId = item.id;
             UI.hideLoading();
             UI.renderResults(results);
@@ -242,10 +257,11 @@ const App = {
 
     _refilterResults() {
         if (!App._lastResults) return;
-        const { queryData, excludeId } = App._lastResults;
+        const { queryData, excludeId, searchMode } = App._lastResults;
+        const mode = searchMode || App.getSearchMode();
         const cacheItems = Cache.getAllItems();
         const results = Similarity.findSimilar(
-            queryData, cacheItems, App.threshold, App.resultCount, excludeId, App.searchMode
+            queryData, cacheItems, App.threshold, App.resultCount, excludeId, mode
         );
         UI.renderResults(results);
     },
@@ -265,21 +281,6 @@ const App = {
         });
         toggleBtn.textContent = App.autoSearchEnabled ? 'ON' : 'OFF';
         toggleBtn.classList.toggle('active', App.autoSearchEnabled);
-
-        // Search mode
-        const modeSelect = document.getElementById('search-mode');
-        modeSelect.value = App.searchMode;
-        modeSelect.addEventListener('change', () => {
-            App.searchMode = modeSelect.value;
-            App._saveSettings();
-            if (App.lastSelectedId) {
-                const item = App.allItems.find(i => i.id === App.lastSelectedId);
-                if (item) {
-                    App.lastSearchedId = null;
-                    App.performSearch(item);
-                }
-            }
-        });
 
         // Result count
         const resultSlider = document.getElementById('result-count');
@@ -311,7 +312,10 @@ const App = {
         document.getElementById('search-btn').addEventListener('click', async () => {
             try {
                 const selected = await eagle.item.getSelected();
-                if (selected && selected.length >= 1) App.performSearch(selected[0]);
+                if (selected && selected.length >= 1) {
+                    App.lastSearchedId = null;
+                    App.performSearch(selected[0]);
+                }
             } catch (e) {}
         });
     },
@@ -348,18 +352,25 @@ const App = {
         App.isSearching = true;
         UI.showLoading('Searching by dropped image...');
         try {
+            const searchMode = App.getSearchMode();
             const queryData = {};
-            if (App.searchMode === 'phash' || App.searchMode === 'hybrid') {
-                const h = await Hasher.computeHashes(filePath);
-                queryData.pHash = h.pHash; queryData.colorHistogram = h.colorHistogram;
-            }
-            if ((App.searchMode === 'clip' || App.searchMode === 'hybrid') && App.clipReady) {
+
+            const h = await Hasher.computeHashes(filePath);
+            queryData.pHash = h.pHash;
+            queryData.colorHistogram = h.colorHistogram;
+
+            if (App.clipReady) {
                 try { queryData.embedding = await Embedder.computeEmbedding(filePath); } catch (e) {}
             }
-            const results = Similarity.findSimilar(queryData, Cache.getAllItems(), App.threshold, App.resultCount, null, App.searchMode);
-            App._lastResults = { queryData, excludeId: null };
-            UI.hideLoading(); UI.renderResults(results);
-        } catch (e) { UI.hideLoading(); UI.showEmptyState('Failed to process dropped image'); }
+
+            const results = Similarity.findSimilar(queryData, Cache.getAllItems(), App.threshold, App.resultCount, null, searchMode);
+            App._lastResults = { queryData, excludeId: null, searchMode };
+            UI.hideLoading();
+            UI.renderResults(results);
+        } catch (e) {
+            UI.hideLoading();
+            UI.showEmptyState('Failed to process dropped image');
+        }
         App.isSearching = false;
     },
 
@@ -368,8 +379,7 @@ const App = {
             localStorage.setItem('fbm_settings', JSON.stringify({
                 autoSearchEnabled: App.autoSearchEnabled,
                 resultCount: App.resultCount,
-                threshold: App.threshold,
-                searchMode: App.searchMode
+                threshold: App.threshold
             }));
         } catch (e) {}
     },
@@ -380,7 +390,6 @@ const App = {
             if (typeof s.autoSearchEnabled === 'boolean') App.autoSearchEnabled = s.autoSearchEnabled;
             if (typeof s.resultCount === 'number') App.resultCount = s.resultCount;
             if (typeof s.threshold === 'number') App.threshold = s.threshold;
-            if (s.searchMode) App.searchMode = s.searchMode;
         } catch (e) {}
     }
 };

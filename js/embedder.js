@@ -1,6 +1,10 @@
 /**
  * embedder.js - CLIP image embedding via Transformers.js
  * Semantic similarity using vision transformer
+ *
+ * IMPORTANT: This module uses dynamic import() for ESM compatibility.
+ * All imports happen lazily inside init() with full error handling.
+ * If the module fails to load, the plugin continues with pHash only.
  */
 
 const Embedder = {
@@ -11,6 +15,7 @@ const Embedder = {
     _RawImage: null,
     _pipelineFn: null,
     _env: null,
+    _error: null,
 
     EMBEDDING_DIM: 512,
 
@@ -21,7 +26,6 @@ const Embedder = {
     async init(cacheDir) {
         if (Embedder._ready) return true;
         if (Embedder._loading) {
-            // Wait for existing init to complete
             while (Embedder._loading) {
                 await new Promise(r => setTimeout(r, 200));
             }
@@ -29,11 +33,23 @@ const Embedder = {
         }
 
         Embedder._loading = true;
+        Embedder._error = null;
         console.log('Embedder: Initializing CLIP model...');
 
         try {
-            // Dynamic import for ESM module
-            const transformers = await import('@huggingface/transformers');
+            // Dynamic import for ESM module - may fail in older Electron
+            let transformers;
+            try {
+                transformers = await import('@huggingface/transformers');
+            } catch (importErr) {
+                // Try require as fallback
+                try {
+                    transformers = require('@huggingface/transformers');
+                } catch (requireErr) {
+                    throw new Error('Cannot load @huggingface/transformers: ' + importErr.message);
+                }
+            }
+
             Embedder._pipelineFn = transformers.pipeline;
             Embedder._RawImage = transformers.RawImage;
             Embedder._env = transformers.env;
@@ -44,7 +60,9 @@ const Embedder = {
             }
 
             // Use WASM backend (works in Electron renderer)
-            Embedder._env.backends.onnx.wasm.numThreads = 1;
+            if (Embedder._env.backends && Embedder._env.backends.onnx) {
+                Embedder._env.backends.onnx.wasm.numThreads = 1;
+            }
 
             // Load the model
             Embedder._pipeline = await Embedder._pipelineFn(
@@ -58,7 +76,8 @@ const Embedder = {
             console.log('Embedder: CLIP model ready');
             return true;
         } catch (e) {
-            console.error('Embedder: Failed to initialize:', e.message);
+            console.warn('Embedder: Failed to initialize:', e.message);
+            Embedder._error = e.message;
             Embedder._loading = false;
             return false;
         }
@@ -72,37 +91,26 @@ const Embedder = {
     },
 
     /**
+     * Get error message if init failed
+     */
+    getError() {
+        return Embedder._error;
+    },
+
+    /**
      * Compute CLIP embedding for an image file
-     * Returns Float32Array of 512 dimensions
+     * Returns Array of 512 floats
      */
     async computeEmbedding(filePath) {
         if (!Embedder._ready) {
             throw new Error('Embedder not initialized');
         }
 
-        // Load image using RawImage (supports file paths)
         const fileUrl = Hasher.filePathToURL(filePath);
         const image = await Embedder._RawImage.read(fileUrl);
-
-        // Get embedding
         const output = await Embedder._pipeline(image, { pooling: 'mean', normalize: true });
-
-        // Extract the embedding vector
         const embedding = Array.from(output.data).slice(0, Embedder.EMBEDDING_DIM);
         return embedding;
-    },
-
-    /**
-     * Cosine similarity between two embedding vectors (already normalized = dot product)
-     */
-    cosineSimilarity(a, b) {
-        if (!a || !b || a.length !== b.length) return 0;
-        let dot = 0;
-        for (let i = 0; i < a.length; i++) {
-            dot += a[i] * b[i];
-        }
-        // Clamp to [-1, 1] (floating point errors)
-        return Math.max(-1, Math.min(1, dot));
     }
 };
 
