@@ -7,7 +7,7 @@
  * - CLIP ready → hybrid mode (AI + pixel)
  */
 
-const nodePath = require('path');
+// nodePath already declared in cache.js (shared global scope)
 
 const App = {
 
@@ -308,16 +308,6 @@ const App = {
         });
         thresholdSlider.addEventListener('change', () => App._saveSettings());
 
-        // Search button
-        document.getElementById('search-btn').addEventListener('click', async () => {
-            try {
-                const selected = await eagle.item.getSelected();
-                if (selected && selected.length >= 1) {
-                    App.lastSearchedId = null;
-                    App.performSearch(selected[0]);
-                }
-            } catch (e) {}
-        });
     },
 
     _initDropZone() {

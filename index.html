@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Find by Media</title>
     <link rel="stylesheet" href="css/style.css">
+    <!-- Hide controls until JS sets correct values — prevents flicker -->
+    <style>#controls { visibility: hidden; }</style>
 </head>
 <body data-theme="DARK">
 
@@ -15,15 +17,14 @@
             <button id="auto-toggle" class="toggle-btn active" title="Auto-search on selection change">ON</button>
             <div class="spacer"></div>
             <span id="ai-badge" class="ai-badge hidden" title="AI-powered semantic search active">AI</span>
-            <button id="search-btn" class="icon-btn" title="Search now">&#x1F50D;</button>
         </div>
         <div class="control-row">
-            <span class="control-label">Results: <span id="result-count-label">20</span></span>
-            <input type="range" id="result-count" min="5" max="50" value="20" step="5">
+            <span class="control-label">Results: <span id="result-count-label"></span></span>
+            <input type="range" id="result-count" min="5" max="50" step="5">
         </div>
         <div class="control-row">
-            <span class="control-label">Min: <span id="threshold-label">70</span>%</span>
-            <input type="range" id="threshold" min="0" max="100" value="70" step="5">
+            <span class="control-label">Min: <span id="threshold-label"></span>%</span>
+            <input type="range" id="threshold" min="0" max="100" step="5">
         </div>
     </div>
 
@@ -73,6 +74,28 @@
             <div id="preview-info"></div>
         </div>
     </div>
+
+    <!-- Set saved settings and reveal controls — all before first paint -->
+    <script>
+    (function() {
+        var rc = 20, th = 70, auto = true;
+        try {
+            var s = JSON.parse(localStorage.getItem('fbm_settings') || '{}');
+            if (typeof s.resultCount === 'number') rc = s.resultCount;
+            if (typeof s.threshold === 'number') th = s.threshold;
+            if (typeof s.autoSearchEnabled === 'boolean') auto = s.autoSearchEnabled;
+        } catch(e) {}
+        document.getElementById('result-count').value = rc;
+        document.getElementById('result-count-label').textContent = rc;
+        document.getElementById('threshold').value = th;
+        document.getElementById('threshold-label').textContent = th;
+        var btn = document.getElementById('auto-toggle');
+        btn.textContent = auto ? 'ON' : 'OFF';
+        if (!auto) btn.classList.remove('active');
+        // Reveal controls — values are now correct
+        document.getElementById('controls').style.visibility = 'visible';
+    })();
+    </script>
 
     <script src="js/hasher.js"></script>
     <script src="js/embedder.js"></script>
