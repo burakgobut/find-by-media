@@ -1,95 +1,100 @@
 # Find by Media
 
-Visual similarity search inspector plugin for [Eagle](https://eagle.cool) content manager.
+**Select an image, instantly find similar ones in your Eagle library.**
 
-Select any image in Eagle and instantly see visually similar images from your library — powered by perceptual hashing, color analysis, and neural network embeddings.
+An inspector plugin for [Eagle](https://eagle.cool) that uses AI-powered visual similarity search — completely offline, no cloud, no API keys.
+
+![Find by Media Demo](assets/demo.gif)
+
+---
+
+## What Does It Do?
+
+Ever saved thousands of images in Eagle but struggled to find *that one* similar reference? Find by Media solves this.
+
+**Select any image** in Eagle, and the plugin instantly shows you visually similar images from your entire library — not just by color or filename, but by what's actually *in* the image.
+
+- Select a chair, find all similar chairs in your library
+- Select a texture, find matching textures and patterns
+- Select an interior shot, find rooms with similar style
 
 ## Features
 
-- **Automatic similarity search** — select an image, similar results appear instantly
-- **Neural search (v1.1.0)** — MobileNet V2 via ONNX Runtime WebGL for semantic understanding
-- **Hybrid scoring** — combines pHash (25%) + color histogram (15%) + neural embeddings (60%)
-- **Pixel-level fallback** — works without AI using pHash + color histogram (60/40)
-- **Adjustable controls** — result count slider, similarity threshold slider, auto-search toggle
-- **Persistent cache** — indexes once, reuses on every session
-- **Dark/light theme** — adapts to Eagle's theme automatically
-- **Zero cloud dependency** — everything runs locally, no API keys needed
+- **AI-Powered Search** — Uses neural network (MobileNet V2) to understand image content, not just pixels
+- **Instant Results** — Select an image, results appear automatically in the inspector panel
+- **100% Offline** — Everything runs on your machine. No cloud, no API keys, no data leaves your computer
+- **Smart Caching** — First scan indexes your library once, then every search is instant
+- **Adjustable** — Control result count and similarity threshold with simple sliders
+- **Dark & Light Theme** — Adapts to your Eagle theme automatically
 
-## How It Works
+## Screenshots
 
-### v1.0.0 — Pixel-Level Similarity
-- **pHash**: Perceptual hash via blockhash-core (256-bit, Hamming distance)
-- **Color Histogram**: 4x4x4 RGB bins (64-dim), cosine similarity
-- Combined score: 60% pHash + 40% color
-
-### v1.1.0 — Neural Similarity (Current)
-- **MobileNet V2**: 1000-dim embedding vectors via ONNX Runtime WebGL backend
-- **WebGL GPU acceleration**: ~100-300ms per image inference
-- **Hybrid mode**: 25% pHash + 15% color + 60% neural embedding
-- Graceful fallback to pixel mode if neural model fails to load
+| Search Results | Settings | Preview |
+|:-:|:-:|:-:|
+| ![Search](assets/screenshot-1.png) | ![Settings](assets/screenshot-2.png) | ![Preview](assets/screenshot-3.png) |
 
 ## Installation
 
-1. Download or clone this repository
-2. Place the `find_by_media` folder in your Eagle plugins directory
-3. Run `npm install` inside the folder
-4. Download the MobileNet V2 model:
+1. **Download** this repository (Code > Download ZIP)
+2. **Unzip** and move the folder to your Eagle plugins directory
+3. **Open terminal** inside the folder and run:
+   ```
+   npm install
+   ```
+4. **Download the AI model** (~14MB):
    ```
    mkdir models
    curl -L -o models/mobilenetv2-7.onnx https://github.com/onnx/models/raw/main/validated/vision/classification/mobilenet/model/mobilenetv2-7.onnx
    ```
-5. Reload Eagle — the plugin appears in the inspector panel when you select an image
+   > On Windows? You can simply [download the model directly](https://github.com/onnx/models/raw/main/validated/vision/classification/mobilenet/model/mobilenetv2-7.onnx) and place it in the `models/` folder.
+5. **Reload Eagle** — the plugin appears in the inspector panel when you select an image
 
 ## Supported Formats
 
 jpg, jpeg, png, gif, bmp, webp, svg, tiff, tif, ico
 
-## Architecture
+## How It Works
 
-```
-find_by_media/
-├── manifest.json        # Eagle inspector plugin config
-├── package.json         # Dependencies: onnxruntime-web, blockhash-core
-├── index.html           # UI with inline settings loader
-├── css/style.css        # Theme-aware responsive styles
-├── js/
-│   ├── hasher.js        # Canvas-based pHash + color histogram
-│   ├── embedder.js      # ONNX Runtime WebGL + MobileNet V2 inference
-│   ├── similarity.js    # Multi-mode scoring engine (phash/neural/hybrid)
-│   ├── cache.js         # JSON file-backed persistent cache
-│   ├── indexer.js       # 2-phase chunked async indexer
-│   ├── ui.js            # Grid rendering, preview overlay, progress
-│   └── main.js          # Orchestrator, Eagle API, polling, drag & drop
-└── models/
-    └── mobilenetv2-7.onnx  # ~14MB neural network model (not in git)
-```
+The plugin combines three different analysis methods for the best results:
 
-## Technical Details
+| Method | What it does | Weight |
+|--------|-------------|--------|
+| Neural Embedding | Understands image content (objects, scenes, style) | 60% |
+| Perceptual Hash | Detects structural similarity and near-duplicates | 25% |
+| Color Analysis | Matches color palette and tone | 15% |
 
-- **Runtime**: Eagle's Electron (Chromium 107, Node 16)
-- **Selection detection**: 500ms polling via `eagle.item.getSelected()` (no event API)
-- **Indexing**: Phase 1 (pHash, chunks of 10) + Phase 2 (neural, chunks of 3)
-- **Cache**: JSON file per library, auto-saves with 3s debounce
-- **WebGL backend**: Avoids WASM/SharedArrayBuffer issues in Eagle's Chromium
-- **No native addons**: Pure JS + WebGL, zero ABI compatibility risk
+If the AI model isn't available, the plugin gracefully falls back to pixel-level analysis (hash + color) — still useful for finding duplicates and color-similar images.
 
-## Changelog
+## FAQ
 
-### v1.1.0 — Neural Similarity Search
-- Added MobileNet V2 neural embeddings via ONNX Runtime WebGL
-- Hybrid search mode: pHash + color + neural (25/15/60 weights)
-- Replaced @xenova/transformers with direct onnxruntime-web (~200MB size reduction)
-- Phase 2 indexing for neural embeddings (one-time, cached)
-- Graceful fallback to pixel mode if model unavailable
+**Q: Does it slow down Eagle?**
+A: No. The initial indexing runs in the background and only happens once per library. After that, searches are instant thanks to caching.
 
-### v1.0.0 — Initial Release
-- Perceptual hash (pHash) via blockhash-core
-- Color histogram similarity (4x4x4 RGB bins)
-- Auto-search on selection, adjustable sliders
-- Persistent JSON cache per library
-- Dark/light theme support
-- Preview overlay (click to view, double-click to navigate)
+**Q: How big is the AI model?**
+A: ~14MB. It runs locally using your GPU via WebGL — no internet needed after download.
+
+**Q: Does it send my images anywhere?**
+A: Absolutely not. Everything is processed locally on your machine. Zero network calls.
+
+**Q: My library has 10,000+ images. Will it work?**
+A: Yes. The indexer processes images in chunks and caches results. First index takes a while, but subsequent sessions are instant.
+
+---
+
+## Support
+
+If you find this plugin useful, consider supporting its development:
+
+<a href="https://buymeacoffee.com/burakgobut">
+  <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" />
+</a>
+
+---
 
 ## License
 
-Private project.
+MIT License — free to use, modify, and share.
+
+## Credits
+
+Built with [ONNX Runtime](https://onnxruntime.ai/) and [MobileNet V2](https://github.com/onnx/models/tree/main/validated/vision/classification/mobilenet) for the [Eagle](https://eagle.cool) community.
