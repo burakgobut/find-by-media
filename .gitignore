@@ -4,5 +4,6 @@ models/*.onnx
 *.log
 .DS_Store
 Thumbs.db
+assets/demo-original.gif
 .claude/
 nul
