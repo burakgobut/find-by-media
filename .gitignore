@@ -1,12 +1,7 @@
 node_modules/
-cache/
 models/*.onnx
-*.log
+cache/
 .DS_Store
-Thumbs.db
-.claude/
-nul
-DEVLOG.md
+*.log
 *.zip
 *.eagleplugin
-assets/demo-original.gif
